@@ -131,3 +131,6 @@ dmypy.json
 .idea/
 
 test.py
+pages.txt
+users.txt
+invite_codes.txt
