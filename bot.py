@@ -34,8 +34,11 @@ def start_message_manager(message):
 
                     # Отправка сообщения
                     name = s.get_fio(user['pages']['timetable_now'])
+                    grade, school = s.get_grade_and_school(user['pages']['timetable_now'])
                     text = f'Вас пригласил {name}\n'
-                    bot.send_message(message.chat.id, text, reply_markup=get_main_keyboard(from_invite_code=True))
+                    text += f'_{school} | {grade}_'
+                    bot.send_message(message.chat.id, text, reply_markup=main_keyboard(from_invite_code=True),
+                                     parse_mode='Markdown')
                 else:
                     invite_code_was_deleted(message)
             else:
@@ -43,8 +46,10 @@ def start_message_manager(message):
 
                 # Отправка сообщения
                 name = s.get_fio(user['pages']['timetable_now'])
+                grade, school = s.get_grade_and_school(user['pages']['timetable_now'])
                 text = f'Здравствуйте, {name}\n'
-                bot.send_message(message.chat.id, text, reply_markup=get_main_keyboard())
+                text += f'_{school} | {grade}_'
+                bot.send_message(message.chat.id, text, reply_markup=main_keyboard(), parse_mode='Markdown')
         else:
             set_user_pages(message)
 
@@ -69,7 +74,7 @@ def start_message_manager(message):
         else:
             text = f'Привет, {message.from_user.username}!'
         text += '\nЯ - Дневник Бот 😄\n\nМожешь войти в свою учетную запись или ввести инвайт-код'
-        bot.send_message(message.chat.id, text, reply_markup=get_keyboard_new_user())
+        bot.send_message(message.chat.id, text, reply_markup=keyboard_new_user())
 
 
 # ---------------------------------------------------------------
@@ -101,7 +106,7 @@ def callback_handler(call):
         # Отправка сообщения
         text = 'На какой день показать расписание?'
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id,
-                              reply_markup=get_timetable_keyboard())
+                              reply_markup=timetable_keyboard())
 
     # Сегодня
     elif call.data == 'timetable_today':
@@ -124,14 +129,14 @@ def callback_handler(call):
         # Отправка сообщения
         text = 'Выберите неделю'
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id,
-                              reply_markup=get_weeks_keyboard())
+                              reply_markup=weeks_keyboard())
 
     # Прошлая неделя
     elif call.data == 'timetable_pre':
         # Отправка сообщения
         text = 'Выберите день на прошлой неделе'
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id,
-                              reply_markup=get_days_pre_keyboard())
+                              reply_markup=days_pre_keyboard())
     elif call.data == 'timetable_pre_0':
         send_timetable(call.message, 0, 'timetable_pre')
     elif call.data == 'timetable_pre_1':
@@ -150,7 +155,7 @@ def callback_handler(call):
         # Отправка сообщения
         text = 'Выберите день на текущей неделе'
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id,
-                              reply_markup=get_days_now_keyboard())
+                              reply_markup=days_now_keyboard())
     elif call.data == 'timetable_now_0':
         send_timetable(call.message, 0, 'timetable_now')
     elif call.data == 'timetable_now_1':
@@ -169,7 +174,7 @@ def callback_handler(call):
         # Отправка сообщения
         text = 'Выберите день на след. неделе'
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id,
-                              reply_markup=get_days_next_keyboard())
+                              reply_markup=days_next_keyboard())
     elif call.data == 'timetable_next_0':
         send_timetable(call.message, 0, 'timetable_next')
     elif call.data == 'timetable_next_1':
@@ -191,19 +196,84 @@ def callback_handler(call):
     elif call.data == 'create_invite_code':
         create_invite_code(call.message)
 
+    # Удалить инвайт-код
     elif call.data == 'delete_invite_code':
         delete_invite_code(call.message)
 
+    # Выйти из аккаунта
     elif call.data == 'logout':
         log(call.message, f'Выход из аккаунта')
 
         bot.delete_message(call.message.chat.id, call.message.message_id)  # Удаление предыдущего сообщения
         logout(call.message)
 
+    # Оценки
+    elif call.data == 'marks':
+        # Отправка сообщения
+        text = 'Выберите опцию'
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id,
+                              reply_markup=marks_keyboard())
+
+    # Все оценки
+    elif call.data == 'all_marks':
+        all_marks_manger(call.message)
+    elif call.data == 'period_1':
+        send_all_marks(call.message, 0)
+    elif call.data == 'period_2':
+        send_all_marks(call.message, 1)
+    elif call.data == 'period_3':
+        send_all_marks(call.message, 2)
+
 
 # ---------------------------------------------------------------
 # Функции
 # ---------------------------------------------------------------
+
+
+def send_all_marks(message, period):
+    # Получить пользователя
+    users = get_users()
+    user = users[message.chat.id]
+
+    subjects = s.get_marks(user['pages']['marks'], period)
+
+    # Есть ли оценки в этом периоде
+    if subjects:
+        text = ''
+        for subject in subjects:
+            text += f'*{subject["name"]} | {subject["avg_mark"]}*\n_'
+
+            # Оценки
+            marks = subject["marks"]
+            for mark in marks:
+                text += f'{mark}  '
+            text += '_\n\n'
+    else:
+        text = 'Оценок пока нет'
+
+    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=back_keyboard(),
+                          parse_mode='Markdown')
+
+
+
+
+def all_marks_manger(message):
+    # Получить пользователя
+    users = get_users()
+    user = users[message.chat.id]
+
+    periods_count = s.get_periods_count(user['pages']['marks'])  # Количество периодов
+
+    if periods_count == 2:  # Полугодия
+        # Отправка сообщения
+        text = 'Выберите полугодие'
+        bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_2_keyboard())
+    elif periods_count == 3:  # Триместры
+        # Отправка сообщения
+        text = 'Выберите триместр'
+        bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_3_keyboard())
+    else:
+        log(message, f'ОООМММГГГГ НОВЫЙ ВИД ПЕРИОДОВ - {Fore.RED}{periods_count}')
 
 
 def delete_invite_code(message):
@@ -219,7 +289,7 @@ def delete_invite_code(message):
 
     # Отправка сообщения
     text = f'Инвайт-код: `{invite_code}` был удален'
-    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=get_back_invite_code_keyboard(),
+    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=back_invite_code_keyboard(),
                           parse_mode='Markdown')
 
 
@@ -230,7 +300,7 @@ def invite_code_was_deleted(message):
 
     # Отправка сообщения
     text = f'Ваш Инвайт-код был удалён создателем'
-    bot.send_message(message.chat.id, text, reply_markup=get_invite_code_was_deleted_keyboard(),
+    bot.send_message(message.chat.id, text, reply_markup=invite_code_was_deleted_keyboard(),
                      parse_mode='Markdown')
 
 
@@ -253,7 +323,7 @@ def create_invite_code(message):
 
     # Отправка сообщения
     text = f'Ваш инвайт-код: `{invite_code}`\n_(Нажми на код что-бы скопировать)_'
-    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=get_back_invite_code_keyboard(),
+    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=back_invite_code_keyboard(),
                           parse_mode='Markdown')
 
 
@@ -315,7 +385,7 @@ def send_settings(message):
     else:
         text += 'не создан'
 
-    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=get_settings_keyboard(user),
+    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=settings_keyboard(user),
                           parse_mode='Markdown')
 
 
@@ -348,7 +418,7 @@ def send_timetable(message, weekday, page_name):
     else:
         text = 'На этот день нет расписания'
 
-    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=get_back_keyboard(),
+    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=back_keyboard(),
                           parse_mode='Markdown')
 
 
@@ -433,21 +503,58 @@ def set_user_pages(message):
 # ---------------------------------------------------------------
 
 
-def get_invite_code_was_deleted_keyboard():
+def periods_2_keyboard():
+    keyboard = types.InlineKeyboardMarkup()
+    b1 = types.InlineKeyboardButton('Первое', callback_data='period_1')
+    b2 = types.InlineKeyboardButton('Второе', callback_data='period_2')
+    keyboard.add(b1, b2)
+
+    # Кнопка Назад
+    back_b = types.InlineKeyboardButton('Назад ↩️', callback_data='marks')
+    keyboard.add(back_b)
+    return keyboard
+
+
+def periods_3_keyboard():
+    keyboard = types.InlineKeyboardMarkup()
+    b1 = types.InlineKeyboardButton('Первый', callback_data='period_1')
+    b2 = types.InlineKeyboardButton('Второй', callback_data='period_2')
+    b2 = types.InlineKeyboardButton('Третий', callback_data='period_2')
+    keyboard.add(b1, b2)
+
+    # Кнопка Назад
+    back_b = types.InlineKeyboardButton('Назад ↩️', callback_data='marks')
+    keyboard.add(back_b)
+    return keyboard
+
+
+def marks_keyboard():
+    keyboard = types.InlineKeyboardMarkup()
+    b1 = types.InlineKeyboardButton('Все оценки', callback_data='all_marks')
+    b2 = types.InlineKeyboardButton('Анализ', callback_data='analysis')
+    keyboard.add(b1, b2)
+
+    # Кнопка Назад
+    back_b = types.InlineKeyboardButton('Назад ↩️', callback_data='main_menu')
+    keyboard.add(back_b)
+    return keyboard
+
+
+def invite_code_was_deleted_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Выйти из аккаунта', callback_data='logout')
     keyboard.add(b1)
     return keyboard
 
 
-def get_back_invite_code_keyboard():
+def back_invite_code_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     back_b = types.InlineKeyboardButton('Назад ↩️', callback_data='settings')
     keyboard.add(back_b)
     return keyboard
 
 
-def get_settings_keyboard(user):
+def settings_keyboard(user):
     keyboard = types.InlineKeyboardMarkup()
     # Кнопка Создать инвайт-код
     if not user['invite_code']:
@@ -467,14 +574,14 @@ def get_settings_keyboard(user):
     return keyboard
 
 
-def get_back_keyboard():
+def back_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     back_b = types.InlineKeyboardButton('Назад ↩️', callback_data='main_menu')
     keyboard.add(back_b)
     return keyboard
 
 
-def get_keyboard_new_user():
+def keyboard_new_user():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Войти', callback_data='login')
     b2 = types.InlineKeyboardButton('Инвайт-код', callback_data='invite-code')
@@ -482,11 +589,11 @@ def get_keyboard_new_user():
     return keyboard
 
 
-def get_main_keyboard(from_invite_code=False):
+def main_keyboard(from_invite_code=False):
     keyboard = types.InlineKeyboardMarkup()
 
     # Кнопка Расписание
-    b1 = types.InlineKeyboardButton('Расписание', callback_data='timetable')
+    b1 = types.InlineKeyboardButton('Дневник', callback_data='timetable')
 
     # Кнопка Оценки
     if not from_invite_code:
@@ -501,7 +608,7 @@ def get_main_keyboard(from_invite_code=False):
     return keyboard
 
 
-def get_timetable_keyboard():
+def timetable_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Сегодня', callback_data='timetable_today')
     b2 = types.InlineKeyboardButton('Завтра', callback_data='timetable_tomorrow')
@@ -514,7 +621,7 @@ def get_timetable_keyboard():
     return keyboard
 
 
-def get_weeks_keyboard():
+def weeks_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Прошлая', callback_data='timetable_pre')
     b2 = types.InlineKeyboardButton('Текущая', callback_data='timetable_now')
@@ -527,7 +634,7 @@ def get_weeks_keyboard():
     return keyboard
 
 
-def get_days_pre_keyboard():
+def days_pre_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Пн', callback_data='timetable_pre_0')
     b2 = types.InlineKeyboardButton('Вт', callback_data='timetable_pre_1')
@@ -544,7 +651,7 @@ def get_days_pre_keyboard():
     return keyboard
 
 
-def get_days_now_keyboard():
+def days_now_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Пн', callback_data='timetable_now_0')
     b2 = types.InlineKeyboardButton('Вт', callback_data='timetable_now_1')
@@ -561,7 +668,7 @@ def get_days_now_keyboard():
     return keyboard
 
 
-def get_days_next_keyboard():
+def days_next_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Пн', callback_data='timetable_next_0')
     b2 = types.InlineKeyboardButton('Вт', callback_data='timetable_next_1')
@@ -584,7 +691,7 @@ def get_days_next_keyboard():
 
 
 def create_user():
-    user = {'login': '', 'password': '', 'pages': {}, 'from_invite_code': False, 'invite_code': False}
+    user = {'login': '', 'password': '', 'pages': {}, 'from_invite_code': False, 'invite_code': False, }
     return user
 
 
@@ -686,7 +793,7 @@ if __name__ == '__main__':
     if os.path.getsize('invite_codes.txt') == 0:
         reset_invite_codes_file()
 
-    reset_users_file()
+    # reset_users_file()
     # reset_invite_codes_file()
 
     bot.skip_pending = True
