@@ -1,6 +1,5 @@
 from bs4 import BeautifulSoup as BS
 import re
-import pickle
 
 
 def get_page():
@@ -23,12 +22,71 @@ def get_periods_count(marks_page):
     return periods_count
 
 
-# TODO - Сделать
-def get_analysis():
-    pass
+def get_avg(marks):
+    marks = [int(mark) for mark in marks]  # Все оценки в int
+    return round(sum(marks) / len(marks), 2)
 
 
-def get_marks(marks_page, period_count, multiply_marks=False):
+def get_analysis(marks_page, period_count, k):
+    subjects = get_marks(marks_page, period_count, multiply_weights=True)
+    k = float(k)
+
+    if subjects:
+        new_subjects = []
+        for subject in subjects:
+            marks_original = subject['marks']
+            marks_left = []  # Оценок до чего-то
+
+            # Пятёрок для пятёрки
+            marks = marks_original.copy()
+            avg = get_avg(marks)
+            left = 0
+            while True:
+                if avg >= k + 4:  # Пятерок достаточно до 5
+                    break
+                else:
+                    left += 1
+                    marks.append('5')
+                    avg = get_avg(marks)
+            if left:  # Если нужно добавть оценки
+                marks_left.append(f'Ещё пятёрок для пятёрки: *{left}*')
+
+            # Пятёрок для четвёрки
+            marks = marks_original.copy()
+            avg = get_avg(marks)
+            left = 0
+            while True:
+                if avg >= k + 3:
+                    break
+                else:
+                    left += 1
+                    marks.append('5')
+                    avg = get_avg(marks)
+            if left:  # Если нужно добавть оценки
+                marks_left.append(f'Ещё пятёрок для четвёрки: *{left}*')
+
+            # Четвёрок для четвёрки
+            marks = marks_original.copy()
+            avg = get_avg(marks)
+            left = 0
+            while True:
+                if avg >= k + 3:
+                    break
+                else:
+                    left += 1
+                    marks.append('4')
+                    avg = get_avg(marks)
+            if left:  # Если нужно добавть оценки
+                marks_left.append(f'Ещё четвёрок для четвёрки: *{left}*')
+
+            subject['marks_left'] = marks_left
+            new_subjects.append(subject)
+        return new_subjects
+    else:
+        return False
+
+
+def get_marks(marks_page, period_count, multiply_weights=False):
     page = BS(marks_page, 'html.parser')
 
     subjects_div = page.select('.all-marks-data')  # Предметы
@@ -51,8 +109,9 @@ def get_marks(marks_page, period_count, multiply_marks=False):
             try:
                 weight = mark_div.select('.module-marks-row span sub')[0].text
 
-                if multiply_marks:
-                    mark = str(int(mark) * int(weight))
+                if multiply_weights:  # добавить такое кол-во оценкок, какой вес
+                    for _ in range(int(weight) - 1):
+                        marks.append(mark)
                 else:
                     if weight == '2':
                         mark += '²'
@@ -64,8 +123,8 @@ def get_marks(marks_page, period_count, multiply_marks=False):
                         mark += '⁵'
             except IndexError:
                 pass
-
             marks.append(mark)
+
         avg_mark = period_div.select('.module-avg-mark')[0].text  # Средний балл
 
         subject = {'name': name, 'marks': marks, 'avg_mark': avg_mark}
@@ -195,4 +254,4 @@ if __name__ == '__main__':
 
     # get_week_info(get_page())
 
-    print(get_marks(get_page2(), 1))
+    print(get_analysis(get_page2(), 0, 0.6))
