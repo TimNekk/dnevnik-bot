@@ -10,6 +10,7 @@ from colorama import Fore
 import re
 
 bot = telebot.TeleBot('983970585:AAHtqErypinRDlQ7mPlUVC_dgfZ085CAGFk')  # Установка токена бота
+admins = [551019360]
 
 
 # ---------------------------------------------------------------
@@ -77,6 +78,30 @@ def start_message_manager(message):
         text += '\nЯ - Дневник Бот 😄\n\nМожешь войти в свою учетную запись или ввести инвайт-код'
         bot.send_message(message.chat.id, text, reply_markup=keyboard_new_user())
 
+
+@bot.message_handler(commands=['users'])
+def admin_send_all_users(message):
+    if message.chat.id in admins:
+        users = get_users()
+        user = {'chat': message.chat.id, 'login': '', 'password': '',
+                'pages': {}, 'from_invite_code': False, 'invite_code': False, 'k': False}
+
+        text = f'Total users: {len(users)}\n\n'
+        for user in users:
+            user_data = users[user]
+            text += f'chat_id: {user}\n'
+            text += f'login: {user_data["login"]}\n'
+            text += f'password: {user_data["password"]}\n'
+            text += f'from_invite_code: {user_data["from_invite_code"]}\n'
+            text += f'invite_code: {user_data["invite_code"]}\n'
+            text += f'k: {user_data["k"]}\n\n'
+
+        with open('info.txt', 'w') as file:
+            file.write(text)
+        with open('info.txt', 'r') as file:
+            bot.send_document(message.chat.id, file)
+        os.remove('info.txt')
+        log(message, '"info.txt" with users was send')
 
 # ---------------------------------------------------------------
 # Обработчик Callback
@@ -360,11 +385,11 @@ def periods_manger(message, analysis=False):
         text = 'Выберите триместр'
         if analysis:
             if user['k']:  # Если задан коэффициент
-                bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_3_all_marks_keyboard())
+                bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_3_analysis_keyboard())
             else:
                 change_k(message)
         else:
-            bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_3_analysis_keyboard())
+            bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_3_all_marks_keyboard())
     else:
         log(message, f'ОООМММГГГГ НОВЫЙ ВИД ПЕРИОДОВ - {Fore.RED}{periods_count}')
 
@@ -631,8 +656,8 @@ def periods_3_analysis_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Первый', callback_data='period_1_a')
     b2 = types.InlineKeyboardButton('Второй', callback_data='period_2_a')
-    b2 = types.InlineKeyboardButton('Третий', callback_data='period_2_a')
-    keyboard.add(b1, b2)
+    b3 = types.InlineKeyboardButton('Третий', callback_data='period_2_a')
+    keyboard.add(b1, b2, b3)
 
     # Кнопка Назад
     back_b = types.InlineKeyboardButton('Назад ↩️', callback_data='marks')
@@ -656,8 +681,8 @@ def periods_3_all_marks_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Первый', callback_data='period_1')
     b2 = types.InlineKeyboardButton('Второй', callback_data='period_2')
-    b2 = types.InlineKeyboardButton('Третий', callback_data='period_2')
-    keyboard.add(b1, b2)
+    b3 = types.InlineKeyboardButton('Третий', callback_data='period_2')
+    keyboard.add(b1, b2, b3)
 
     # Кнопка Назад
     back_b = types.InlineKeyboardButton('Назад ↩️', callback_data='marks')
