@@ -7,6 +7,7 @@ import scraping as s
 import datetime
 import secrets
 from colorama import Fore
+import re
 
 bot = telebot.TeleBot('983970585:AAHtqErypinRDlQ7mPlUVC_dgfZ085CAGFk')  # Установка токена бота
 
@@ -36,7 +37,7 @@ def start_message_manager(message):
                     name = s.get_fio(user['pages']['timetable_now'])
                     grade, school = s.get_grade_and_school(user['pages']['timetable_now'])
                     text = f'Вас пригласил {name}\n'
-                    text += f'_{school} | {grade}_'
+                    text += f'🏫 _{school} | {grade}_'
                     bot.send_message(message.chat.id, text, reply_markup=main_keyboard(from_invite_code=True),
                                      parse_mode='Markdown')
                 else:
@@ -48,7 +49,7 @@ def start_message_manager(message):
                 name = s.get_fio(user['pages']['timetable_now'])
                 grade, school = s.get_grade_and_school(user['pages']['timetable_now'])
                 text = f'Здравствуйте, {name}\n'
-                text += f'_{school} | {grade}_'
+                text += f'🏫 _{school} | {grade}_'
                 bot.send_message(message.chat.id, text, reply_markup=main_keyboard(), parse_mode='Markdown')
         else:
             set_user_pages(message)
@@ -104,7 +105,7 @@ def callback_handler(call):
     # Расписание
     elif call.data == 'timetable':
         # Отправка сообщения
-        text = 'На какой день показать расписание?'
+        text = 'Выберите день'
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id,
                               reply_markup=timetable_keyboard())
 
@@ -191,22 +192,19 @@ def callback_handler(call):
     # Насттройки
     elif call.data == 'settings':
         send_settings(call.message)
-
     # Создать инвайт-код
     elif call.data == 'create_invite_code':
         create_invite_code(call.message)
-
     # Удалить инвайт-код
     elif call.data == 'delete_invite_code':
         delete_invite_code(call.message)
-
     # Выйти из аккаунта
     elif call.data == 'logout':
-        log(call.message, f'Выход из аккаунта')
-
         bot.delete_message(call.message.chat.id, call.message.message_id)  # Удаление предыдущего сообщения
         logout(call.message)
 
+    elif call.data == 'change_k':
+        change_k(call.message)
     # Оценки
     elif call.data == 'marks':
         # Отправка сообщения
@@ -216,7 +214,7 @@ def callback_handler(call):
 
     # Все оценки
     elif call.data == 'all_marks':
-        all_marks_manger(call.message)
+        periods_manger(call.message)
     elif call.data == 'period_1':
         send_all_marks(call.message, 0)
     elif call.data == 'period_2':
@@ -224,10 +222,95 @@ def callback_handler(call):
     elif call.data == 'period_3':
         send_all_marks(call.message, 2)
 
+    # Анализ
+    elif call.data == 'analysis':
+        periods_manger(call.message, analysis=True)
+    elif call.data == 'period_1_a':
+        send_analysis(call.message, 0)
+    elif call.data == 'period_2_a':
+        send_analysis(call.message, 1)
+    elif call.data == 'period_3_a':
+        send_analysis(call.message, 2)
+
 
 # ---------------------------------------------------------------
 # Функции
 # ---------------------------------------------------------------
+
+
+def change_k(message):
+    # Отправка сообщения
+    text = '*Введите Коэффициент округления в вашем классе*\n\n'
+
+    text += '_Пример 1:_\nКоэффициент округления: `0.60` \n'
+    text += '  Средний бал: *4.59* или *ниже*\n  В году оценка выдет: *4*\n'
+    text += '  Средний бал: *4.60* или *выше*\n  В году оценка выдет: *5*\n\n'
+
+    text += '_Пример 2:_\nКоэффициент округления: `0.54` \n'
+    text += '  Средний бал: *3.53* или *ниже*\n  В году оценка выдет: *3*\n'
+    text += '  Средний бал: *3.54* или *выше*\n  В году оценка выдет: *4*\n\n'
+
+    text += '_Стандартный Коэффициент округления_: `0.60`'
+
+    msg = bot.edit_message_text(text, message.chat.id, message.message_id, parse_mode='Markdown')
+
+    bot.register_next_step_handler(msg, process_k)
+
+
+def process_k(message):
+    # Удаление 2 предыдущих сообщений
+    for i in range(2):
+        bot.delete_message(message.chat.id, message.message_id - i)
+
+    # Получить пользователя
+    users = get_users()
+    user = users[message.chat.id]
+
+    # Установка Коэффициента округления
+    k = message.text
+    try:
+        re.findall(r'0[.]\d+', k)[0]  # Правильный формат коэф.
+        user['k'] = k
+        save_users(users)
+        log(message, f'Установлен Коэффициент округления - {k}')
+
+        # Отправка сообщения
+        text = '✅ *Коэффициент округления установлен* ✅'
+        bot.send_message(message.chat.id, text, parse_mode='Markdown')
+    except IndexError:
+        log(message, f'{Fore.RED}Неверный формат Коэффициента округления')
+
+        # Отправка сообщения
+        text = '❌ *Неверный формат* ❌'
+        bot.send_message(message.chat.id, text, parse_mode='Markdown')
+
+    start_message_manager(message)
+
+
+def send_analysis(message, period):
+    # Получить пользователя
+    users = get_users()
+    user = users[message.chat.id]
+    k = user['k']  # Коэф.
+
+    subjects = s.get_analysis(user['pages']['marks'], period, k)
+
+    if subjects:
+        text = f'Коэффициент округления: `{k}`\n\n'
+        for subject in subjects:
+            text += f'*{subject["name"]} | {subject["avg_mark"]}*\n'
+
+            # Еще оценок
+            marks_left = subject["marks_left"]
+            for mark_left in marks_left:
+                if marks_left:
+                    text += f'{mark_left}\n'
+            text += '\n\n'
+    else:
+        text = 'Оценок пока нет'
+
+    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=back_keyboard(),
+                          parse_mode='Markdown')
 
 
 def send_all_marks(message, period):
@@ -255,9 +338,7 @@ def send_all_marks(message, period):
                           parse_mode='Markdown')
 
 
-
-
-def all_marks_manger(message):
+def periods_manger(message, analysis=False):
     # Получить пользователя
     users = get_users()
     user = users[message.chat.id]
@@ -267,11 +348,23 @@ def all_marks_manger(message):
     if periods_count == 2:  # Полугодия
         # Отправка сообщения
         text = 'Выберите полугодие'
-        bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_2_keyboard())
+        if analysis:
+            if user['k']:  # Если задан коэффициент
+                bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_2_analysis_keyboard())
+            else:
+                change_k(message)
+        else:
+            bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_2_all_marks_keyboard())
     elif periods_count == 3:  # Триместры
         # Отправка сообщения
         text = 'Выберите триместр'
-        bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_3_keyboard())
+        if analysis:
+            if user['k']:  # Если задан коэффициент
+                bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_3_all_marks_keyboard())
+            else:
+                change_k(message)
+        else:
+            bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=periods_3_analysis_keyboard())
     else:
         log(message, f'ОООМММГГГГ НОВЫЙ ВИД ПЕРИОДОВ - {Fore.RED}{periods_count}')
 
@@ -305,6 +398,7 @@ def invite_code_was_deleted(message):
 
 
 def logout(message):
+    log(message, f'Выход из аккаунта')
     delete_user(message)
     start_message_manager(message)
 
@@ -379,11 +473,20 @@ def send_settings(message):
     users = get_users()
     user = users[message.chat.id]
 
-    text = f'Инвайт-код: '
+    # Инвайт-код
+    text = 'Инвайт-код: '
     if user['invite_code']:
         text += f'`{user["invite_code"]}`'
     else:
         text += 'не создан'
+
+    # Коэффициент округления
+    if not user['from_invite_code']:
+        text += '\nКоэффициент округления: '
+        if user['k']:
+            text += f'*{user["k"]}*'
+        else:
+            text += 'не задан'
 
     bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=settings_keyboard(user),
                           parse_mode='Markdown')
@@ -477,22 +580,31 @@ def set_user_pages(message):
     users = get_users()
     user = users[message.chat.id]
 
-    pages = nw.get_diary_pages(user['login'], user['password'])
+    try:
+        pages = nw.get_diary_pages(user['login'], user['password'])
 
-    if pages:
-        # Установка страниц пользователя
-        user['pages']['timetable_now'] = pages[0]
-        user['pages']['timetable_next'] = pages[1]
-        user['pages']['timetable_pre'] = pages[2]
-        user['pages']['marks'] = pages[3]
-        log(message, f'{Fore.GREEN}Данные обновлены')
-        save_users(users)
-    else:
-        log(message, f'{Fore.RED}Введены неверные данные')
+        if pages:
+            # Установка страниц пользователя
+            user['pages']['timetable_now'] = pages[0]
+            user['pages']['timetable_next'] = pages[1]
+            user['pages']['timetable_pre'] = pages[2]
+            user['pages']['marks'] = pages[3]
+            log(message, f'{Fore.GREEN}Данные обновлены')
+            save_users(users)
+        else:
+            log(message, f'{Fore.RED}Введены неверные данные')
+            delete_user(message)
+
+            # Отправка сообщения
+            text = '❌ *Неверные данные* ❌'
+            bot.send_message(message.chat.id, text, parse_mode='Markdown')
+
+    except Exception as e:  # Ошибка networking
+        log(message, f'{Fore.RED}Ошибка networking:\n{e.args}')
         delete_user(message)
 
         # Отправка сообщения
-        text = '❌ *Неверные данные* ❌'
+        text = '⚠️ *Ошибка соединения* ⚠️\nП_опробуйте еще раз_'
         bot.send_message(message.chat.id, text, parse_mode='Markdown')
 
     start_message_manager(message)
@@ -503,7 +615,32 @@ def set_user_pages(message):
 # ---------------------------------------------------------------
 
 
-def periods_2_keyboard():
+def periods_2_analysis_keyboard():
+    keyboard = types.InlineKeyboardMarkup()
+    b1 = types.InlineKeyboardButton('Первое', callback_data='period_1_a')
+    b2 = types.InlineKeyboardButton('Второе', callback_data='period_2_a')
+    keyboard.add(b1, b2)
+
+    # Кнопка Назад
+    back_b = types.InlineKeyboardButton('Назад ↩️', callback_data='marks')
+    keyboard.add(back_b)
+    return keyboard
+
+
+def periods_3_analysis_keyboard():
+    keyboard = types.InlineKeyboardMarkup()
+    b1 = types.InlineKeyboardButton('Первый', callback_data='period_1_a')
+    b2 = types.InlineKeyboardButton('Второй', callback_data='period_2_a')
+    b2 = types.InlineKeyboardButton('Третий', callback_data='period_2_a')
+    keyboard.add(b1, b2)
+
+    # Кнопка Назад
+    back_b = types.InlineKeyboardButton('Назад ↩️', callback_data='marks')
+    keyboard.add(back_b)
+    return keyboard
+
+
+def periods_2_all_marks_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Первое', callback_data='period_1')
     b2 = types.InlineKeyboardButton('Второе', callback_data='period_2')
@@ -515,7 +652,7 @@ def periods_2_keyboard():
     return keyboard
 
 
-def periods_3_keyboard():
+def periods_3_all_marks_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     b1 = types.InlineKeyboardButton('Первый', callback_data='period_1')
     b2 = types.InlineKeyboardButton('Второй', callback_data='period_2')
@@ -556,15 +693,16 @@ def back_invite_code_keyboard():
 
 def settings_keyboard(user):
     keyboard = types.InlineKeyboardMarkup()
-    # Кнопка Создать инвайт-код
-    if not user['invite_code']:
-        b1 = types.InlineKeyboardButton('Создать инвайт-код', callback_data='create_invite_code')
+
+    if not user['from_invite_code']:  # Вход по логину
+        if not user['invite_code']:  # Нет Инвайт-код
+            b1 = types.InlineKeyboardButton('Создать инвайт-код', callback_data='create_invite_code')
+        else:
+            b1 = types.InlineKeyboardButton('Удалить инвайт-код', callback_data='delete_invite_code')
+        b2 = types.InlineKeyboardButton('Изменить коэф. округл.', callback_data='change_k')
         keyboard.add(b1)
-    elif not user['from_invite_code']:
-        b2 = types.InlineKeyboardButton('Удалить инвайт-код', callback_data='delete_invite_code')
         keyboard.add(b2)
 
-    # Кнопка Выйти из аккаунта
     b3 = types.InlineKeyboardButton('Выйти из аккаунта', callback_data='logout')
     keyboard.add(b3)
 
@@ -691,7 +829,7 @@ def days_next_keyboard():
 
 
 def create_user():
-    user = {'login': '', 'password': '', 'pages': {}, 'from_invite_code': False, 'invite_code': False, }
+    user = {'login': '', 'password': '', 'pages': {}, 'from_invite_code': False, 'invite_code': False, 'k': False}
     return user
 
 
