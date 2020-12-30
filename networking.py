@@ -26,13 +26,6 @@ def get_diary_pages(login, password):
         return False
 
     # Если появилось еще одно окно с авторизацией
-    try:
-        driver.find_element_by_id('login').send_keys(login)  # Ввести логин
-        driver.find_element_by_id('password').send_keys(password)  # Ввести пароль
-        sleep(1)
-        driver.find_element_by_id('bind').click()  # Кнопка войти
-    except common.exceptions.NoSuchElementException:
-        pass
 
     # Получение страницы с расписанием
     while not driver.find_elements_by_tag_name('diary-student-diary-day'):  # Ожидание загрузки страницы
@@ -83,7 +76,8 @@ def get_diary_pages(login, password):
 
 if __name__ == '__main__':
     page = get_diary_pages(slogin, spassword)
+    print(page[3])
 
-    # with open('pages.txt', 'w') as file:
-    #     file.write(page)
+    with open('pages2.txt', 'wb') as file:
+        pickle.dump(page[3], file)
 

@@ -49,7 +49,7 @@ def get_analysis(marks_page, period_count, k):
                     marks.append('5')
                     avg = get_avg(marks)
             if left:  # Если нужно добавть оценки
-                marks_left.append(f'Ещё пятёрок для пятёрки: *{left}*')
+                marks_left.append(f'  Ещё пятёрок для пятёрки: *{left}*')
 
             # Пятёрок для четвёрки
             marks = marks_original.copy()
@@ -63,7 +63,7 @@ def get_analysis(marks_page, period_count, k):
                     marks.append('5')
                     avg = get_avg(marks)
             if left:  # Если нужно добавть оценки
-                marks_left.append(f'Ещё пятёрок для четвёрки: *{left}*')
+                marks_left.append(f'  Ещё пятёрок для четвёрки: *{left}*')
 
             # Четвёрок для четвёрки
             marks = marks_original.copy()
@@ -77,7 +77,7 @@ def get_analysis(marks_page, period_count, k):
                     marks.append('4')
                     avg = get_avg(marks)
             if left:  # Если нужно добавть оценки
-                marks_left.append(f'Ещё четвёрок для четвёрки: *{left}*')
+                marks_left.append(f'  Ещё четвёрок для четвёрки: *{left}*')
 
             subject['marks_left'] = marks_left
             new_subjects.append(subject)
@@ -226,32 +226,4 @@ def get_timetable(diary_page, weekday):
 
 
 if __name__ == '__main__':
-    # # Получние расписания
-    # lessons = get_timetable(get_page(), 1)
-    # numbers = '➀➁➂➃➄➅➆'
-    # if lessons:
-    #     text = ''
-    #     for i, lesson in enumerate(lessons, 0):  # Проход через все уроки
-    #         # Название
-    #         text += f'*{numbers[i]} {lesson[0]}'
-    #
-    #         # Оценки
-    #         if lesson[2]:
-    #             text += ' | '
-    #             for mark in lesson[2]:
-    #                 text += f'{mark} '
-    #         text += '*'
-    #
-    #         # Задание
-    #         if lesson[1]:
-    #             text += f'\n_{lesson[1]}_\n\n'
-    #         else:
-    #             text += '\n\n'
-    # else:
-    #     text = 'На этот день нет расписания'
-    #
-    # print(text)
-
-    # get_week_info(get_page())
-
     print(get_analysis(get_page2(), 0, 0.6))
